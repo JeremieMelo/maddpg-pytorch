@@ -12,7 +12,7 @@ from utils.buffer import ReplayBuffer
 from utils.env_wrappers import SubprocVecEnv, DummyVecEnv
 from algorithms.maddpg import MADDPG
 
-USE_CUDA = False  # torch.cuda.is_available()
+USE_CUDA = torch.cuda.is_available()
 
 def make_parallel_env(env_id, n_rollout_threads, seed, discrete_action):
     def get_env_fn(rank):
@@ -41,7 +41,7 @@ def run(config):
             curr_run = 'run%i' % (max(exst_run_nums) + 1)
     run_dir = model_dir / curr_run
     log_dir = run_dir / 'logs'
-    os.makedirs(log_dir)
+    os.makedirs(str(log_dir))
     logger = SummaryWriter(str(log_dir))
 
     torch.manual_seed(config.seed)
@@ -106,11 +106,11 @@ def run(config):
             logger.add_scalar('agent%i/mean_episode_rewards' % a_i, a_ep_rew, ep_i)
 
         if ep_i % config.save_interval < config.n_rollout_threads:
-            os.makedirs(run_dir / 'incremental', exist_ok=True)
-            maddpg.save(run_dir / 'incremental' / ('model_ep%i.pt' % (ep_i + 1)))
-            maddpg.save(run_dir / 'model.pt')
+            os.makedirs(str(run_dir / 'incremental'), exist_ok=True)
+            maddpg.save(str(run_dir / 'incremental' / ('model_ep%i.pt' % (ep_i + 1))))
+            maddpg.save(str(run_dir / 'model.pt'))
 
-    maddpg.save(run_dir / 'model.pt')
+    maddpg.save(str(run_dir / 'model.pt'))
     env.close()
     logger.export_scalars_to_json(str(log_dir / 'summary.json'))
     logger.close()
@@ -118,8 +118,8 @@ def run(config):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument("env_id", help="Name of environment")
-    parser.add_argument("model_name",
+    parser.add_argument("--env_id", default="simple_tag", help="Name of environment")
+    parser.add_argument("--model_name", default="summary", 
                         help="Name of directory to store " +
                              "model/training contents")
     parser.add_argument("--seed",
