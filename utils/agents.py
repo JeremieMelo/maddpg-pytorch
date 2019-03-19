@@ -1,7 +1,14 @@
+#!/usr/bin/env python
+# coding=UTF-8
+'''
+@Author: Jake Gu
+@Date: 2019-03-19 14:40:19
+@LastEditTime: 2019-03-19 16:15:22
+'''
 from torch import Tensor
 from torch.autograd import Variable
 from torch.optim import Adam
-from .networks import MLPNetwork
+from .networks import MLPNetwork, RNNMLPNetwork
 from .misc import hard_update, gumbel_softmax, onehot_from_logits
 from .noise import OUNoise
 
@@ -11,27 +18,43 @@ class DDPGAgent(object):
     critic, exploration noise)
     """
     def __init__(self, num_in_pol, num_out_pol, num_in_critic, hidden_dim=64,
-                 lr=0.01, discrete_action=True):
+                 lr=0.01, discrete_action=True, use_rnn=0, shuffle=False):
         """
         Inputs:
             num_in_pol (int): number of dimensions for policy input
             num_out_pol (int): number of dimensions for policy output
             num_in_critic (int): number of dimensions for critic input
         """
-        self.policy = MLPNetwork(num_in_pol, num_out_pol,
+        if(use_rnn):
+            self.policy = RNNMLPNetwork(num_in_pol, num_out_pol,
+                                    hidden_dim=hidden_dim,
+                                    constrain_out=True,
+                                    discrete_action=discrete_action, shuffle=shuffle)
+            self.critic = RNNMLPNetwork(num_in_critic, 1,
+                                    hidden_dim=hidden_dim,
+                                    constrain_out=False, shuffle=shuffle)
+            self.target_policy = RNNMLPNetwork(num_in_pol, num_out_pol,
+                                            hidden_dim=hidden_dim,
+                                            constrain_out=True,
+                                            discrete_action=discrete_action, shuffle=shuffle)
+            self.target_critic = RNNMLPNetwork(num_in_critic, 1,
+                                            hidden_dim=hidden_dim,
+                                            constrain_out=False, shuffle=shuffle)
+        else:
+            self.policy = MLPNetwork(num_in_pol, num_out_pol,
                                  hidden_dim=hidden_dim,
                                  constrain_out=True,
                                  discrete_action=discrete_action)
-        self.critic = MLPNetwork(num_in_critic, 1,
-                                 hidden_dim=hidden_dim,
-                                 constrain_out=False)
-        self.target_policy = MLPNetwork(num_in_pol, num_out_pol,
-                                        hidden_dim=hidden_dim,
-                                        constrain_out=True,
-                                        discrete_action=discrete_action)
-        self.target_critic = MLPNetwork(num_in_critic, 1,
-                                        hidden_dim=hidden_dim,
-                                        constrain_out=False)
+            self.critic = MLPNetwork(num_in_critic, 1,
+                                            hidden_dim=hidden_dim,
+                                            constrain_out=False)
+            self.target_policy = MLPNetwork(num_in_pol, num_out_pol,
+                                            hidden_dim=hidden_dim,
+                                            constrain_out=True,
+                                            discrete_action=discrete_action)
+            self.target_critic = MLPNetwork(num_in_critic, 1,
+                                            hidden_dim=hidden_dim,
+                                            constrain_out=False)
         hard_update(self.target_policy, self.policy)
         hard_update(self.target_critic, self.critic)
         self.policy_optimizer = Adam(self.policy.parameters(), lr=lr)
