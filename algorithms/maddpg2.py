@@ -3,7 +3,7 @@
 '''
 @Author: Jake Gu
 @Date: 2019-03-19 21:43:40
-@LastEditTime: 2019-03-19 21:46:41
+@LastEditTime: 2019-03-20 22:21:07
 '''
 import torch
 import torch.nn.functional as F
@@ -36,6 +36,7 @@ class MADDPG(object):
             hidden_dim (int): Number of hidden dimensions for networks
             discrete_action (bool): Whether or not to use discrete action space
         """
+        print("@@@@@@@@@@@@@@@@@@@@")
         self.nagents = len(alg_types)
         self.alg_types = alg_types
         self.agents = [DDPGAgent(lr=lr, discrete_action=discrete_action,
@@ -111,6 +112,7 @@ class MADDPG(object):
             else:
                 all_trgt_acs = [pi(nobs) for pi, nobs in zip(self.target_policies,
                                                              next_obs)]
+                #print(all_trgt_acs[0].size(), len(all_trgt_acs))
             trgt_vf_in = torch.cat((*next_obs, *all_trgt_acs), dim=1)
         else:  # DDPG
             if self.discrete_action:
@@ -155,12 +157,15 @@ class MADDPG(object):
         if self.alg_types[agent_i] == 'MADDPG':
             all_pol_acs = []
             for i, pi, ob in zip(range(self.nagents), self.policies, obs):
+                
                 if i == agent_i:
                     all_pol_acs.append(curr_pol_vf_in)
                 elif self.discrete_action:
                     all_pol_acs.append(onehot_from_logits(pi(ob)))
                 else:
-                    all_pol_acs.append(pi(ob))
+                    action = pi(ob)
+                    #print(action, action.size())
+                    all_pol_acs.append(action)
             vf_in = torch.cat((*obs, *all_pol_acs), dim=1)
         else:  # DDPG
             vf_in = torch.cat((obs[agent_i], curr_pol_vf_in),
@@ -243,11 +248,14 @@ class MADDPG(object):
         """
         Instantiate instance of this class from multi-agent environment
         """
+        print("hello")
         agent_init_params = []
         alg_types = [adversary_alg if atype == 'adversary' else agent_alg for
                      atype in env.agent_types]
-        for acsp, obsp, algtype in zip(env.action_space, env.observation_space,
-                                       alg_types):
+        nagents = len(alg_types)
+        agent_id = 0
+        for acsp, obsp, algtype, agent_type in zip(env.action_space, env.observation_space,
+                                       alg_types, env.agent_types):
             num_in_pol = obsp.shape[0]
             if isinstance(acsp, Box):
                 discrete_action = False
@@ -264,15 +272,27 @@ class MADDPG(object):
                     num_in_critic += get_shape(oacsp)
             else:
                 num_in_critic = obsp.shape[0] + get_shape(acsp)
+            # agent_init_params.append({'num_in_pol': num_in_pol,
+            #                           'num_out_pol': num_out_pol,
+            #                           'num_in_critic': num_in_critic})
+            print(agent_id)
             agent_init_params.append({'num_in_pol': num_in_pol,
                                       'num_out_pol': num_out_pol,
-                                      'num_in_critic': num_in_critic})
+                                      'num_in_critic': num_in_critic,
+                                      'agent_id':agent_id,
+                                      'is_adversary':agent_type=='adversary',
+                                      'n_agent_ori':1,
+                                      'n_adversary_ori':3,
+                                      'n_agent':1,
+                                      'n_adversary':3})
+            agent_id += 1
         init_dict = {'gamma': gamma, 'tau': tau, 'lr': lr,
                      'hidden_dim': hidden_dim,
                      'alg_types': alg_types,
                      'agent_init_params': agent_init_params,
                      'discrete_action': discrete_action}
         instance = cls(**init_dict)
+        print("~!~!~!~!")
         instance.init_dict = init_dict
         return instance
 

@@ -3,12 +3,12 @@
 '''
 @Author: Jake Gu
 @Date: 2019-03-19 14:40:19
-@LastEditTime: 2019-03-19 16:15:22
+@LastEditTime: 2019-03-20 22:23:14
 '''
 from torch import Tensor
 from torch.autograd import Variable
 from torch.optim import Adam
-from .networks import MLPNetwork, RNNMLPNetwork
+from .networks import MLPNetwork, RNNMLPNetwork_Critic_Adversary, RNNMLPNetwork_Critic_Agent, RNNMLPNetwork_Policy_Adversary, RNNMLPNetwork_Policy_Agent
 from .misc import hard_update, gumbel_softmax, onehot_from_logits
 from .noise import OUNoise
 
@@ -18,28 +18,56 @@ class DDPGAgent(object):
     critic, exploration noise)
     """
     def __init__(self, num_in_pol, num_out_pol, num_in_critic, hidden_dim=64,
-                 lr=0.01, discrete_action=True, use_rnn=0, shuffle=False):
+                 lr=0.01, discrete_action=True, use_rnn=1, shuffle=False,
+                 agent_id=0, is_adversary=1, n_agent_ori=1, n_adversary_ori=3, n_agent=1, n_adversary=3):
         """
         Inputs:
             num_in_pol (int): number of dimensions for policy input
             num_out_pol (int): number of dimensions for policy output
             num_in_critic (int): number of dimensions for critic input
         """
+        #print('agent_id:', agent_id, is_adversary)
         if(use_rnn):
-            self.policy = RNNMLPNetwork(num_in_pol, num_out_pol,
-                                    hidden_dim=hidden_dim,
-                                    constrain_out=True,
-                                    discrete_action=discrete_action, shuffle=shuffle)
-            self.critic = RNNMLPNetwork(num_in_critic, 1,
-                                    hidden_dim=hidden_dim,
-                                    constrain_out=False, shuffle=shuffle)
-            self.target_policy = RNNMLPNetwork(num_in_pol, num_out_pol,
+            if(is_adversary):
+                print('num_in_pol',num_in_pol)
+                self.policy = RNNMLPNetwork_Policy_Adversary(agent_id, n_agent_ori, n_adversary_ori, n_agent, n_adversary,
+                                            num_in_pol, num_out_pol,
                                             hidden_dim=hidden_dim,
                                             constrain_out=True,
                                             discrete_action=discrete_action, shuffle=shuffle)
-            self.target_critic = RNNMLPNetwork(num_in_critic, 1,
+                self.critic = RNNMLPNetwork_Critic_Adversary(agent_id, n_agent_ori, n_adversary_ori, n_agent, n_adversary,
+                                            num_in_critic, 1,
                                             hidden_dim=hidden_dim,
                                             constrain_out=False, shuffle=shuffle)
+                self.target_policy = RNNMLPNetwork_Policy_Adversary(agent_id, n_agent_ori, n_adversary_ori, n_agent, n_adversary,
+                                            num_in_pol, num_out_pol,
+                                            hidden_dim=hidden_dim,
+                                            constrain_out=True,
+                                            discrete_action=discrete_action, shuffle=shuffle)
+                self.target_critic = RNNMLPNetwork_Critic_Adversary(agent_id, n_agent_ori, n_adversary_ori, n_agent, n_adversary,
+                                            num_in_critic, 1,
+                                            hidden_dim=hidden_dim,
+                                            constrain_out=False, shuffle=shuffle)
+            else:
+                self.policy = RNNMLPNetwork_Policy_Agent(agent_id, n_agent_ori, n_adversary_ori, n_agent, n_adversary,
+                                            num_in_pol, num_out_pol,
+                                            hidden_dim=hidden_dim,
+                                            constrain_out=True,
+                                            discrete_action=discrete_action, shuffle=shuffle)
+                self.critic = RNNMLPNetwork_Critic_Agent(agent_id, n_agent_ori, n_adversary_ori, n_agent, n_adversary,
+                                            num_in_critic, 1,
+                                            hidden_dim=hidden_dim,
+                                            constrain_out=False, shuffle=shuffle)
+                self.target_policy = RNNMLPNetwork_Policy_Agent(agent_id, n_agent_ori, n_adversary_ori, n_agent, n_adversary,
+                                            num_in_pol, num_out_pol,
+                                            hidden_dim=hidden_dim,
+                                            constrain_out=True,
+                                            discrete_action=discrete_action, shuffle=shuffle)
+                self.target_critic = RNNMLPNetwork_Critic_Agent(agent_id, n_agent_ori, n_adversary_ori, n_agent, n_adversary,
+                                            num_in_critic, 1,
+                                            hidden_dim=hidden_dim,
+                                            constrain_out=False, shuffle=shuffle)
+                
         else:
             self.policy = MLPNetwork(num_in_pol, num_out_pol,
                                  hidden_dim=hidden_dim,
@@ -84,6 +112,7 @@ class DDPGAgent(object):
         Outputs:
             action (PyTorch Variable): Actions for this agent
         """
+        
         action = self.policy(obs)
         if self.discrete_action:
             if explore:
